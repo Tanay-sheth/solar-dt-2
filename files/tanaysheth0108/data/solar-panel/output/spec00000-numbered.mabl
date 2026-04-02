@@ -1,0 +1,131 @@
+1  simulation 
+2  import JacobianStepBuilder;
+3  import Initializer;
+4  import DebugLogging;
+5  import TypeConverter;
+6  import DataWriter;
+7  import FMI2;
+8  import Math;
+9  import ArrayUtil;
+10  import Logger;
+11  import BooleanLogic;
+12  import MEnv;
+13  @Framework( "FMI2");
+14  @FrameworkConfig( "FMI2", "{\"fmus\":{\"{proxy}\":\"file:///workspace/digital_twins/solar-panel/models/hardware_proxy_unpacked\",\"{optimizer}\":\"file:///workspace/digital_twins/solar-panel/models/optimizer_unpacked\"},\"connections\":{\"{optimizer}.opt.out_target_pan\":[\"{proxy}.prx.in_target_pan\"],\"{optimizer}.opt.out_target_tilt\":[\"{proxy}.prx.in_target_tilt\"],\"{proxy}.prx.out_current_power\":[\"{optimizer}.opt.in_current_power\"]}}");
+15  {
+16   	bool global_execution_continue = true;
+17  	int FMI_STATUS_OK = 0;
+18  	int FMI_STATUS_WARNING = 1;
+19  	int FMI_STATUS_DISCARD = 2;
+20  	int FMI_STATUS_ERROR = 3;
+21  	int FMI_STATUS_FATAL = 4;
+22  	int FMI_STATUS_PENDING = 5;
+23  	int status = 0;
+24  	Math math = null;
+25  	Logger logger = null;
+26  	DataWriter dataWriter = null;
+27  	BooleanLogic booleanLogic = null;
+28  	@mapFmu(optimizer -> "{optimizer}");
+29  	FMI2 optimizer = null;
+30  	@mapFmu(proxy -> "{proxy}");
+31  	FMI2 proxy = null;
+32  	@mapInstance(opt -> "opt");
+33  	FMI2Component opt = null;
+34  	@mapInstance(prx -> "prx");
+35  	FMI2Component prx = null;
+36  	try 
+37  	{
+38  		math = load("Math");
+39  		if( (math == null) )
+40  		{
+41  				error "math IS NULL ";
+42  		}
+43  		logger = load("Logger");
+44  		if( (logger == null) )
+45  		{
+46  				error "logger IS NULL ";
+47  		}
+48  		dataWriter = load("DataWriter");
+49  		if( (dataWriter == null) )
+50  		{
+51  				error "dataWriter IS NULL ";
+52  		}
+53  		booleanLogic = load("BooleanLogic");
+54  		if( (booleanLogic == null) )
+55  		{
+56  				error "booleanLogic IS NULL ";
+57  		}
+58  		optimizer = load("FMI2", "4e33dc28-2d31-11f1-b504-66b14bd4641c", "file:/workspace/digital_twins/solar-panel/models/optimizer_unpacked/");
+59  		if( (optimizer == null) )
+60  		{
+61  				error "optimizer IS NULL ";
+62  		}
+63  		proxy = load("FMI2", "4e1e1366-2d31-11f1-8da5-66b14bd4641c", "file:/workspace/digital_twins/solar-panel/models/hardware_proxy_unpacked/");
+64  		if( (proxy == null) )
+65  		{
+66  				error "proxy IS NULL ";
+67  		}
+68  		opt = optimizer.instantiate("opt", false, false);
+69  		if( (opt == null) )
+70  		{
+71  				error "opt IS NULL ";
+72  		}
+73  		prx = proxy.instantiate("prx", false, false);
+74  		if( (prx == null) )
+75  		{
+76  				error "prx IS NULL ";
+77  		}
+78  		FMI2Component components[2] = { opt , prx };
+79  		real STEP_SIZE = 0.1;
+80  		real START_TIME = 0.0;
+81  		real END_TIME = 60.0;
+82  		@Config("{\"environmentParameters\":null,\"parameters\":{\"{optimizer}.opt.initial_target_power\":10.0}}");
+83  		Initializer.expand initialize(components, START_TIME, END_TIME);
+84  		@Config("{\"variablesOfInterest\":[],\"stabilisation\":false,\"absoluteTolerance\":0.0,\"relativeTolerance\":0.0,\"stabilisationLoopMaxIterations\":0,\"simulationProgramDelay\":false,\"setGetDerivatives\":false,\"startTime\":0.0,\"endTime\":60.0,\"stepAlgorithm\":{\"type\":\"fixed-step\",\"size\":0.1}}");
+85  		JacobianStepBuilder.expand fixedStepSizeTransfer(components, STEP_SIZE, START_TIME, END_TIME);
+86  		opt.terminate();
+87  		prx.terminate();
+88  	}	finally 
+89  	{
+90  		if( (opt != null) )
+91  		{
+92  				optimizer.freeInstance(opt);
+93  				opt = null;
+94  		}
+95  		if( (prx != null) )
+96  		{
+97  				proxy.freeInstance(prx);
+98  				prx = null;
+99  		}
+100  		if( (optimizer != null) )
+101  		{
+102  				unload(optimizer);
+103  				optimizer = null;
+104  		}
+105  		if( (proxy != null) )
+106  		{
+107  				unload(proxy);
+108  				proxy = null;
+109  		}
+110  		if( (math != null) )
+111  		{
+112  				unload(math);
+113  				math = null;
+114  		}
+115  		if( (logger != null) )
+116  		{
+117  				unload(logger);
+118  				logger = null;
+119  		}
+120  		if( (dataWriter != null) )
+121  		{
+122  				unload(dataWriter);
+123  				dataWriter = null;
+124  		}
+125  		if( (booleanLogic != null) )
+126  		{
+127  				unload(booleanLogic);
+128  				booleanLogic = null;
+129  		}
+130  	}
+131  }

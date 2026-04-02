@@ -1,0 +1,9 @@
+{
+  "environment_variables" : {
+    "{optimizer}.opt.initial_target_power" : 10.0
+  },
+  "DataWriter" : [ {
+    "filename" : "outputs.csv",
+    "type" : "CSV"
+  } ]
+}

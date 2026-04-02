@@ -1,0 +1,131 @@
+simulation 
+import JacobianStepBuilder;
+import Initializer;
+import DebugLogging;
+import TypeConverter;
+import DataWriter;
+import FMI2;
+import Math;
+import ArrayUtil;
+import Logger;
+import BooleanLogic;
+import MEnv;
+@Framework( "FMI2");
+@FrameworkConfig( "FMI2", "{\"fmus\":{\"{proxy}\":\"file:///workspace/digital_twins/solar-panel/models/hardware_proxy_unpacked\",\"{optimizer}\":\"file:///workspace/digital_twins/solar-panel/models/optimizer_unpacked\"},\"connections\":{\"{optimizer}.opt.out_target_pan\":[\"{proxy}.prx.in_target_pan\"],\"{optimizer}.opt.out_target_tilt\":[\"{proxy}.prx.in_target_tilt\"],\"{proxy}.prx.out_current_power\":[\"{optimizer}.opt.in_current_power\"]}}");
+{
+ 	bool global_execution_continue = true;
+	int FMI_STATUS_OK = 0;
+	int FMI_STATUS_WARNING = 1;
+	int FMI_STATUS_DISCARD = 2;
+	int FMI_STATUS_ERROR = 3;
+	int FMI_STATUS_FATAL = 4;
+	int FMI_STATUS_PENDING = 5;
+	int status = 0;
+	Math math = null;
+	Logger logger = null;
+	DataWriter dataWriter = null;
+	BooleanLogic booleanLogic = null;
+	@mapFmu(optimizer -> "{optimizer}");
+	FMI2 optimizer = null;
+	@mapFmu(proxy -> "{proxy}");
+	FMI2 proxy = null;
+	@mapInstance(opt -> "opt");
+	FMI2Component opt = null;
+	@mapInstance(prx -> "prx");
+	FMI2Component prx = null;
+	try 
+	{
+		math = load("Math");
+		if( (math == null) )
+		{
+				error "math IS NULL ";
+		}
+		logger = load("Logger");
+		if( (logger == null) )
+		{
+				error "logger IS NULL ";
+		}
+		dataWriter = load("DataWriter");
+		if( (dataWriter == null) )
+		{
+				error "dataWriter IS NULL ";
+		}
+		booleanLogic = load("BooleanLogic");
+		if( (booleanLogic == null) )
+		{
+				error "booleanLogic IS NULL ";
+		}
+		optimizer = load("FMI2", "4e33dc28-2d31-11f1-b504-66b14bd4641c", "file:/workspace/digital_twins/solar-panel/models/optimizer_unpacked/");
+		if( (optimizer == null) )
+		{
+				error "optimizer IS NULL ";
+		}
+		proxy = load("FMI2", "4e1e1366-2d31-11f1-8da5-66b14bd4641c", "file:/workspace/digital_twins/solar-panel/models/hardware_proxy_unpacked/");
+		if( (proxy == null) )
+		{
+				error "proxy IS NULL ";
+		}
+		opt = optimizer.instantiate("opt", false, false);
+		if( (opt == null) )
+		{
+				error "opt IS NULL ";
+		}
+		prx = proxy.instantiate("prx", false, false);
+		if( (prx == null) )
+		{
+				error "prx IS NULL ";
+		}
+		FMI2Component components[2] = { opt , prx };
+		real STEP_SIZE = 0.1;
+		real START_TIME = 0.0;
+		real END_TIME = 60.0;
+		@Config("{\"environmentParameters\":null,\"parameters\":{\"{optimizer}.opt.initial_target_power\":10.0}}");
+		Initializer.expand initialize(components, START_TIME, END_TIME);
+		@Config("{\"variablesOfInterest\":[],\"stabilisation\":false,\"absoluteTolerance\":0.0,\"relativeTolerance\":0.0,\"stabilisationLoopMaxIterations\":0,\"simulationProgramDelay\":false,\"setGetDerivatives\":false,\"startTime\":0.0,\"endTime\":60.0,\"stepAlgorithm\":{\"type\":\"fixed-step\",\"size\":0.1}}");
+		JacobianStepBuilder.expand fixedStepSizeTransfer(components, STEP_SIZE, START_TIME, END_TIME);
+		opt.terminate();
+		prx.terminate();
+	}	finally 
+	{
+		if( (opt != null) )
+		{
+				optimizer.freeInstance(opt);
+				opt = null;
+		}
+		if( (prx != null) )
+		{
+				proxy.freeInstance(prx);
+				prx = null;
+		}
+		if( (optimizer != null) )
+		{
+				unload(optimizer);
+				optimizer = null;
+		}
+		if( (proxy != null) )
+		{
+				unload(proxy);
+				proxy = null;
+		}
+		if( (math != null) )
+		{
+				unload(math);
+				math = null;
+		}
+		if( (logger != null) )
+		{
+				unload(logger);
+				logger = null;
+		}
+		if( (dataWriter != null) )
+		{
+				unload(dataWriter);
+				dataWriter = null;
+		}
+		if( (booleanLogic != null) )
+		{
+				unload(booleanLogic);
+				booleanLogic = null;
+		}
+	}
+}

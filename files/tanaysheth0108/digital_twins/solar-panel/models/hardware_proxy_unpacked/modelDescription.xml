@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription fmiVersion="2.0" modelName="HardwareProxy" guid="4e1e1366-2d31-11f1-8da5-66b14bd4641c" generationTool="PythonFMU 0.7.0" generationDateAndTime="2026-03-31T18:42:01+00:00" variableNamingConvention="structured">
+	<CoSimulation needsExecutionTool="true" canHandleVariableCommunicationStepSize="true" canInterpolateInputs="false" canBeInstantiatedOnlyOncePerProcess="false" canGetAndSetFMUstate="false" canSerializeFMUstate="false" modelIdentifier="HardwareProxy" canNotUseMemoryManagementFunctions="true"/>
+	<LogCategories>
+		<Category name="logStatusWarning" description="Log messages with fmi2Warning status."/>
+		<Category name="logStatusDiscard" description="Log messages with fmi2Discard status."/>
+		<Category name="logStatusError" description="Log messages with fmi2Error status."/>
+		<Category name="logStatusFatal" description="Log messages with fmi2Fatal status."/>
+		<Category name="logAll" description="Log all messages."/>
+	</LogCategories>
+	<ModelVariables>
+		<ScalarVariable name="in_target_pan" valueReference="0" causality="input">
+			<Real start="90"/>
+		</ScalarVariable>
+		<ScalarVariable name="in_target_tilt" valueReference="1" causality="input">
+			<Real start="45"/>
+		</ScalarVariable>
+		<ScalarVariable name="out_current_power" valueReference="2" causality="output">
+			<Real/>
+		</ScalarVariable>
+	</ModelVariables>
+	<ModelStructure>
+		<Outputs>
+			<Unknown index="3"/>
+		</Outputs>
+	</ModelStructure>
+</fmiModelDescription>

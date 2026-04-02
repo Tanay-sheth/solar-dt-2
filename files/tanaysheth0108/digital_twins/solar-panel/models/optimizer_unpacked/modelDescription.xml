@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription fmiVersion="2.0" modelName="Optimizer" guid="4e33dc28-2d31-11f1-b504-66b14bd4641c" generationTool="PythonFMU 0.7.0" generationDateAndTime="2026-03-31T18:42:01+00:00" variableNamingConvention="structured">
+	<CoSimulation needsExecutionTool="true" canHandleVariableCommunicationStepSize="true" canInterpolateInputs="false" canBeInstantiatedOnlyOncePerProcess="false" canGetAndSetFMUstate="false" canSerializeFMUstate="false" modelIdentifier="Optimizer" canNotUseMemoryManagementFunctions="true"/>
+	<LogCategories>
+		<Category name="logStatusWarning" description="Log messages with fmi2Warning status."/>
+		<Category name="logStatusDiscard" description="Log messages with fmi2Discard status."/>
+		<Category name="logStatusError" description="Log messages with fmi2Error status."/>
+		<Category name="logStatusFatal" description="Log messages with fmi2Fatal status."/>
+		<Category name="logAll" description="Log all messages."/>
+	</LogCategories>
+	<ModelVariables>
+		<ScalarVariable name="in_current_power" valueReference="0" causality="input" variability="continuous">
+			<Real start="0"/>
+		</ScalarVariable>
+		<ScalarVariable name="start_mode" valueReference="1" causality="input" variability="discrete">
+			<Integer start="1"/>
+		</ScalarVariable>
+		<ScalarVariable name="initial_target_power" valueReference="2" causality="parameter" variability="fixed">
+			<Real start="10"/>
+		</ScalarVariable>
+		<ScalarVariable name="out_target_pan" valueReference="3" causality="output" variability="continuous">
+			<Real/>
+		</ScalarVariable>
+		<ScalarVariable name="out_target_tilt" valueReference="4" causality="output" variability="continuous">
+			<Real/>
+		</ScalarVariable>
+	</ModelVariables>
+	<ModelStructure>
+		<Outputs>
+			<Unknown index="4"/>
+			<Unknown index="5"/>
+		</Outputs>
+	</ModelStructure>
+</fmiModelDescription>

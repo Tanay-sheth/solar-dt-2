@@ -1,0 +1,54 @@
+#!/bin/bash
+# Navigate to the digital twin root
+cd /workspace/digital_twins/solar-panel
+
+PID_FILE=".run.pids"
+# Clear old PIDs if they exist
+rm -f "$PID_FILE"
+
+echo "==> Loading environments (NVM & Python venv)..."
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm use --lts
+source venv/bin/activate
+
+# 1. Start the Gateway (The Heart)
+echo "Starting Gateway..."
+node gateway/server.js &
+GATEWAY_PID=$!
+echo "$GATEWAY_PID" >> "$PID_FILE"
+
+# 2. Start the Frontend (The UI)
+echo "Starting Frontend..."
+cd frontend
+npm run dev &
+FRONTEND_PID=$!
+echo "$FRONTEND_PID" >> "../$PID_FILE"
+cd ..
+
+# 3. Start the Hardware Mock (The Physical Body)
+echo "Starting Hardware Mock..."
+python3 hardware/mock_panel.py &
+MOCK_PID=$!
+echo "$MOCK_PID" >> "$PID_FILE"
+
+# Give the physical body and gateway a second to boot before attaching the brains
+sleep 2
+
+# 4. Start the Digital Twins (The Brains)
+echo "Starting State Proxy..."
+python3 models/hardware_proxy.py &
+PROXY_PID=$!
+echo "$PROXY_PID" >> "$PID_FILE"
+
+echo "Starting AI Optimizer..."
+python3 models/optimizer.py &
+OPTIMIZER_PID=$!
+echo "$OPTIMIZER_PID" >> "$PID_FILE"
+
+echo ""
+echo "============================================================"
+echo "✅ All Digital Twin microservices started in the background!"
+echo "👉 Open your browser to: http://localhost:5173"
+echo "🛑 When you are done, run your terminate script to shut down."
+echo "============================================================"

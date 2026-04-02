@@ -1,0 +1,597 @@
+1  simulation 
+2  import ArrayUtil;
+3  import ArrayUtil;
+4  import BooleanLogic;
+5  import BooleanLogic;
+6  import BooleanLogic;
+7  import DataWriter;
+8  import DataWriter;
+9  import DebugLogging;
+10  import FMI2;
+11  import FMI2;
+12  import FMI2;
+13  import Initializer;
+14  import JacobianStepBuilder;
+15  import Logger;
+16  import Logger;
+17  import Logger;
+18  import MEnv;
+19  import MEnv;
+20  import Math;
+21  import Math;
+22  import Math;
+23  import SimulationControl;
+24  import TypeConverter;
+25  import TypeConverter;
+26  import TypeConverter;
+27  @Framework( "FMI2");
+28  @FrameworkConfig( "FMI2", "{\"fmus\":{\"{proxy}\":\"file:///workspace/digital_twins/solar-panel/models/hardware_proxy_unpacked\",\"{optimizer}\":\"file:///workspace/digital_twins/solar-panel/models/optimizer_unpacked\"},\"connections\":{\"{optimizer}.opt.out_target_pan\":[\"{proxy}.prx.in_target_pan\"],\"{optimizer}.opt.out_target_tilt\":[\"{proxy}.prx.in_target_tilt\"],\"{proxy}.prx.out_current_power\":[\"{optimizer}.opt.in_current_power\"]}}");
+29  {
+30   	bool global_execution_continue = true;
+31  	int FMI_STATUS_OK = 0;
+32  	int FMI_STATUS_WARNING = 1;
+33  	int FMI_STATUS_DISCARD = 2;
+34  	int FMI_STATUS_ERROR = 3;
+35  	int FMI_STATUS_FATAL = 4;
+36  	int FMI_STATUS_PENDING = 5;
+37  	int status = 0;
+38  	Math math = null;
+39  	Logger logger = null;
+40  	DataWriter dataWriter = null;
+41  	BooleanLogic booleanLogic = null;
+42  	@mapFmu(optimizer -> "{optimizer}");
+43  	FMI2 optimizer = null;
+44  	@mapFmu(proxy -> "{proxy}");
+45  	FMI2 proxy = null;
+46  	@mapInstance(opt -> "opt");
+47  	FMI2Component opt = null;
+48  	@mapInstance(prx -> "prx");
+49  	FMI2Component prx = null;
+50  	try 
+51  	{
+52  		math = load("Math");
+53  		if( (math == null) )
+54  		{
+55  				error "math IS NULL ";
+56  		}
+57  		logger = load("Logger");
+58  		if( (logger == null) )
+59  		{
+60  				error "logger IS NULL ";
+61  		}
+62  		dataWriter = load("DataWriter");
+63  		if( (dataWriter == null) )
+64  		{
+65  				error "dataWriter IS NULL ";
+66  		}
+67  		booleanLogic = load("BooleanLogic");
+68  		if( (booleanLogic == null) )
+69  		{
+70  				error "booleanLogic IS NULL ";
+71  		}
+72  		optimizer = load("FMI2", "4e33dc28-2d31-11f1-b504-66b14bd4641c", "file:/workspace/digital_twins/solar-panel/models/optimizer_unpacked/");
+73  		if( (optimizer == null) )
+74  		{
+75  				error "optimizer IS NULL ";
+76  		}
+77  		proxy = load("FMI2", "4e1e1366-2d31-11f1-8da5-66b14bd4641c", "file:/workspace/digital_twins/solar-panel/models/hardware_proxy_unpacked/");
+78  		if( (proxy == null) )
+79  		{
+80  				error "proxy IS NULL ";
+81  		}
+82  		opt = optimizer.instantiate("opt", false, false);
+83  		if( (opt == null) )
+84  		{
+85  				error "opt IS NULL ";
+86  		}
+87  		prx = proxy.instantiate("prx", false, false);
+88  		if( (prx == null) )
+89  		{
+90  				error "prx IS NULL ";
+91  		}
+92  		FMI2Component components[2] = { opt , prx };
+93  		real STEP_SIZE = 0.1;
+94  		real START_TIME = 0.0;
+95  		real END_TIME = 60.0;
+96  		int FMI_OK = 0;
+97  		int FMI_WARNING = 1;
+98  		int FMI_DISCARD = 2;
+99  		int FMI_ERROR = 3;
+100  		int FMI_FATAL = 4;
+101  		int FMI_PENDING = 5;
+102  		BooleanLogic booleanLogic1;
+103  		try 
+104  		{
+105  			booleanLogic1 = load("BooleanLogic");
+106  			if( booleanLogic1 == null )
+107  			{
+108  					error "Failed load of: booleanLogic1";
+109  			}
+110  			real prxRealShare[1];
+111  			real prxRealIo[3];
+112  			uint prxUintVref[3];
+113  			real optRealShare[2];
+114  			real optRealIo[5];
+115  			uint optUintVref[5];
+116  			real fixed_end_time = 0.0;
+117  			fixed_end_time = END_TIME;
+118  			real absoluteTolerance = 0.2;
+119  			real relativeTolerance = 0.1;
+120  			int maxConvergeAttempts = 5;
+121  			status = opt.setupExperiment(true, 0.1, START_TIME, true, END_TIME);
+122  			if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+123  			{
+124  					if( status == FMI_ERROR )
+125  					{
+126  							logger.log(4, "SetupExperiment failed on '%s' with status: FMI_ERROR", opt);
+127  					}
+128  					if( status == FMI_FATAL )
+129  					{
+130  							logger.log(4, "SetupExperiment failed on '%s' with status: FMI_FATAL", opt);
+131  					}
+132  					error "Failed to 'setupExperiment' on 'opt'";
+133  			}
+134  			status = prx.setupExperiment(true, 0.1, START_TIME, true, END_TIME);
+135  			if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+136  			{
+137  					if( status == FMI_ERROR )
+138  					{
+139  							logger.log(4, "SetupExperiment failed on '%s' with status: FMI_ERROR", prx);
+140  					}
+141  					if( status == FMI_FATAL )
+142  					{
+143  							logger.log(4, "SetupExperiment failed on '%s' with status: FMI_FATAL", prx);
+144  					}
+145  					error "Failed to 'setupExperiment' on 'prx'";
+146  			}
+147  			optUintVref[0] = 2;
+148  			optRealIo[0] = 10.0;
+149  			status = opt.setReal(optUintVref, 1, optRealIo);
+150  			if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+151  			{
+152  					if( status == FMI_ERROR )
+153  					{
+154  							logger.log(4, "SetReal failed on '%s' with status: FMI_ERROR", opt);
+155  					}
+156  					if( status == FMI_FATAL )
+157  					{
+158  							logger.log(4, "SetReal failed on '%s' with status: FMI_FATAL", opt);
+159  					}
+160  					error "Failed to 'setReal' on 'opt'";
+161  			}
+162  			status = opt.enterInitializationMode();
+163  			if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+164  			{
+165  					if( status == FMI_ERROR )
+166  					{
+167  							logger.log(4, "EnterInitializationMode failed on '%s' with status: FMI_ERROR", opt);
+168  					}
+169  					if( status == FMI_FATAL )
+170  					{
+171  							logger.log(4, "EnterInitializationMode failed on '%s' with status: FMI_FATAL", opt);
+172  					}
+173  					error "Failed to 'enterInitializationMode' on 'opt'";
+174  			}
+175  			status = prx.enterInitializationMode();
+176  			if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+177  			{
+178  					if( status == FMI_ERROR )
+179  					{
+180  							logger.log(4, "EnterInitializationMode failed on '%s' with status: FMI_ERROR", prx);
+181  					}
+182  					if( status == FMI_FATAL )
+183  					{
+184  							logger.log(4, "EnterInitializationMode failed on '%s' with status: FMI_FATAL", prx);
+185  					}
+186  					error "Failed to 'enterInitializationMode' on 'prx'";
+187  			}
+188  			optUintVref[0] = 4;
+189  			status = opt.getReal(optUintVref, 1, optRealIo);
+190  			if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+191  			{
+192  					if( status == FMI_ERROR )
+193  					{
+194  							logger.log(4, "GetReal failed on '%s' with status: FMI_ERROR", opt);
+195  					}
+196  					if( status == FMI_FATAL )
+197  					{
+198  							logger.log(4, "GetReal failed on '%s' with status: FMI_FATAL", opt);
+199  					}
+200  					error "Failed to 'getReal' on 'opt'";
+201  			}
+202  			optRealShare[0] = optRealIo[0];
+203  			prxUintVref[0] = 1;
+204  			prxRealIo[0] = optRealShare[0];
+205  			status = prx.setReal(prxUintVref, 1, prxRealIo);
+206  			if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+207  			{
+208  					if( status == FMI_ERROR )
+209  					{
+210  							logger.log(4, "SetReal failed on '%s' with status: FMI_ERROR", prx);
+211  					}
+212  					if( status == FMI_FATAL )
+213  					{
+214  							logger.log(4, "SetReal failed on '%s' with status: FMI_FATAL", prx);
+215  					}
+216  					error "Failed to 'setReal' on 'prx'";
+217  			}
+218  			optUintVref[0] = 3;
+219  			status = opt.getReal(optUintVref, 1, optRealIo);
+220  			if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+221  			{
+222  					if( status == FMI_ERROR )
+223  					{
+224  							logger.log(4, "GetReal failed on '%s' with status: FMI_ERROR", opt);
+225  					}
+226  					if( status == FMI_FATAL )
+227  					{
+228  							logger.log(4, "GetReal failed on '%s' with status: FMI_FATAL", opt);
+229  					}
+230  					error "Failed to 'getReal' on 'opt'";
+231  			}
+232  			optRealShare[1] = optRealIo[0];
+233  			prxUintVref[0] = 0;
+234  			prxRealIo[0] = optRealShare[1];
+235  			status = prx.setReal(prxUintVref, 1, prxRealIo);
+236  			if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+237  			{
+238  					if( status == FMI_ERROR )
+239  					{
+240  							logger.log(4, "SetReal failed on '%s' with status: FMI_ERROR", prx);
+241  					}
+242  					if( status == FMI_FATAL )
+243  					{
+244  							logger.log(4, "SetReal failed on '%s' with status: FMI_FATAL", prx);
+245  					}
+246  					error "Failed to 'setReal' on 'prx'";
+247  			}
+248  			prxUintVref[0] = 2;
+249  			status = prx.getReal(prxUintVref, 1, prxRealIo);
+250  			if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+251  			{
+252  					if( status == FMI_ERROR )
+253  					{
+254  							logger.log(4, "GetReal failed on '%s' with status: FMI_ERROR", prx);
+255  					}
+256  					if( status == FMI_FATAL )
+257  					{
+258  							logger.log(4, "GetReal failed on '%s' with status: FMI_FATAL", prx);
+259  					}
+260  					error "Failed to 'getReal' on 'prx'";
+261  			}
+262  			prxRealShare[0] = prxRealIo[0];
+263  			optUintVref[0] = 0;
+264  			optRealIo[0] = prxRealShare[0];
+265  			status = opt.setReal(optUintVref, 1, optRealIo);
+266  			if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+267  			{
+268  					if( status == FMI_ERROR )
+269  					{
+270  							logger.log(4, "SetReal failed on '%s' with status: FMI_ERROR", opt);
+271  					}
+272  					if( status == FMI_FATAL )
+273  					{
+274  							logger.log(4, "SetReal failed on '%s' with status: FMI_FATAL", opt);
+275  					}
+276  					error "Failed to 'setReal' on 'opt'";
+277  			}
+278  			status = opt.exitInitializationMode();
+279  			if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+280  			{
+281  					if( status == FMI_ERROR )
+282  					{
+283  							logger.log(4, "ExitInitializationMode failed on '%s' with status: FMI_ERROR", opt);
+284  					}
+285  					if( status == FMI_FATAL )
+286  					{
+287  							logger.log(4, "ExitInitializationMode failed on '%s' with status: FMI_FATAL", opt);
+288  					}
+289  					error "Failed to 'exitInitializationMode' on 'opt'";
+290  			}
+291  			status = prx.exitInitializationMode();
+292  			if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+293  			{
+294  					if( status == FMI_ERROR )
+295  					{
+296  							logger.log(4, "ExitInitializationMode failed on '%s' with status: FMI_ERROR", prx);
+297  					}
+298  					if( status == FMI_FATAL )
+299  					{
+300  							logger.log(4, "ExitInitializationMode failed on '%s' with status: FMI_FATAL", prx);
+301  					}
+302  					error "Failed to 'exitInitializationMode' on 'prx'";
+303  			}
+304  		}		finally 
+305  		{
+306  			if( booleanLogic1 != null )
+307  			{
+308  					unload(booleanLogic1);
+309  					booleanLogic1 = null;
+310  			}
+311  		}
+312  		BooleanLogic booleanLogic2;
+313  		DataWriter dataWriter1;
+314  		SimulationControl simulationControl;
+315  		try 
+316  		{
+317  			simulationControl = load("SimulationControl");
+318  			if( simulationControl == null )
+319  			{
+320  					error "Failed load of: simulationControl";
+321  			}
+322  			dataWriter1 = load("DataWriter");
+323  			if( dataWriter1 == null )
+324  			{
+325  					error "Failed load of: dataWriter1";
+326  			}
+327  			booleanLogic2 = load("BooleanLogic");
+328  			if( booleanLogic2 == null )
+329  			{
+330  					error "Failed load of: booleanLogic2";
+331  			}
+332  			bool prxCurrentTimeFullStep = true;
+333  			real prxCurrentTime = 0.0;
+334  			bool optCurrentTimeFullStep = true;
+335  			real optCurrentTime = 0.0;
+336  			real optRealShare[2];
+337  			real prxRealShare[1];
+338  			real prxRealIo[3];
+339  			uint prxUintVref[3];
+340  			real optRealIo[5];
+341  			uint optUintVref[5];
+342  			real jac_current_step_size = 0.0;
+343  			real jac_step_size = 0.0;
+344  			@TransferAs("START_TIME");
+345  			real jac_current_communication_point = 0.0;
+346  			real jac_end_time = 0.0;
+347  			jac_current_step_size = STEP_SIZE;
+348  			jac_step_size = STEP_SIZE;
+349  			jac_current_communication_point = START_TIME;
+350  			jac_end_time = END_TIME;
+351  			string datawriter_headers[3] = { "{optimizer}.opt.out_target_pan" , "{optimizer}.opt.out_target_tilt" , "{proxy}.prx.out_current_power" };
+352  			DataWriterConfig datawriter_configuration = dataWriter1.writeHeader(datawriter_headers);
+353  			optUintVref[0] = 3;
+354  			optUintVref[1] = 4;
+355  			status = opt.getReal(optUintVref, 2, optRealIo);
+356  			if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+357  			{
+358  					if( status == FMI_ERROR )
+359  					{
+360  							logger.log(4, "GetReal failed on '%s' with status: FMI_ERROR", opt);
+361  					}
+362  					if( status == FMI_FATAL )
+363  					{
+364  							logger.log(4, "GetReal failed on '%s' with status: FMI_FATAL", opt);
+365  					}
+366  					error "Failed to 'getReal' on 'opt'";
+367  			}
+368  			prxUintVref[0] = 2;
+369  			status = prx.getReal(prxUintVref, 1, prxRealIo);
+370  			if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+371  			{
+372  					if( status == FMI_ERROR )
+373  					{
+374  							logger.log(4, "GetReal failed on '%s' with status: FMI_ERROR", prx);
+375  					}
+376  					if( status == FMI_FATAL )
+377  					{
+378  							logger.log(4, "GetReal failed on '%s' with status: FMI_FATAL", prx);
+379  					}
+380  					error "Failed to 'getReal' on 'prx'";
+381  			}
+382  			prxRealShare[0] = prxRealIo[0];
+383  			optRealShare[0] = optRealIo[0];
+384  			optRealShare[1] = optRealIo[1];
+385  			real fmu_communicationpoints[2];
+386  			bool all_fmus_support_get_state = false;
+387  			dataWriter1.writeDataPoint(datawriter_configuration, jac_current_communication_point, optRealShare[0], optRealShare[1], prxRealShare[0]);
+388  			bool any_discards = false;
+389  			while( (jac_current_communication_point + jac_current_step_size) < jac_end_time )
+390  			{
+391  				bool tmp = simulationControl.stopRequested();
+392  				if( tmp )
+393  				{
+394  						error "Simulation stopped by user";
+395  				}
+396  				@Transfer();
+397  				optUintVref[0] = 0;
+398  				optRealIo[0] = prxRealShare[0];
+399  				status = opt.setReal(optUintVref, 1, optRealIo);
+400  				if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+401  				{
+402  						if( status == FMI_ERROR )
+403  						{
+404  								logger.log(4, "SetReal failed on '%s' with status: FMI_ERROR", opt);
+405  						}
+406  						if( status == FMI_FATAL )
+407  						{
+408  								logger.log(4, "SetReal failed on '%s' with status: FMI_FATAL", opt);
+409  						}
+410  						error "Failed to 'setReal' on 'opt'";
+411  				}
+412  				prxUintVref[0] = 0;
+413  				prxUintVref[1] = 1;
+414  				prxRealIo[0] = optRealShare[0];
+415  				prxRealIo[1] = optRealShare[1];
+416  				status = prx.setReal(prxUintVref, 2, prxRealIo);
+417  				if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+418  				{
+419  						if( status == FMI_ERROR )
+420  						{
+421  								logger.log(4, "SetReal failed on '%s' with status: FMI_ERROR", prx);
+422  						}
+423  						if( status == FMI_FATAL )
+424  						{
+425  								logger.log(4, "SetReal failed on '%s' with status: FMI_FATAL", prx);
+426  						}
+427  						error "Failed to 'setReal' on 'prx'";
+428  				}
+429  				any_discards = false;
+430  				status = opt.doStep(jac_current_communication_point, jac_current_step_size, false);
+431  				if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+432  				{
+433  						if( status == FMI_ERROR )
+434  						{
+435  								logger.log(4, "DoStep failed on '%s' with status: FMI_ERROR", opt);
+436  						}
+437  						if( status == FMI_FATAL )
+438  						{
+439  								logger.log(4, "DoStep failed on '%s' with status: FMI_FATAL", opt);
+440  						}
+441  						error "Failed to 'doStep' on 'opt'";
+442  				}
+443  				if( status != FMI_OK )
+444  				{
+445  						if( status == FMI_DISCARD )
+446  						{
+447  								status = opt.getRealStatus(2, ref optCurrentTime);
+448  								optCurrentTimeFullStep = false;
+449  						}
+450  				}
+451  				else
+452  				{
+453  						optCurrentTime = jac_current_communication_point + jac_current_step_size;
+454  						optCurrentTimeFullStep = true;
+455  				}
+456  				fmu_communicationpoints[0] = optCurrentTime;
+457  				if( !optCurrentTimeFullStep )
+458  				{
+459  						logger.log(1, "## FMU: '%s' DISCARDED step at sim-time: %f for step-size: %f and proposed sim-time: %.15f", "opt", jac_current_communication_point, jac_current_step_size, optCurrentTime);
+460  						any_discards = any_discards || !optCurrentTimeFullStep;
+461  				}
+462  				status = prx.doStep(jac_current_communication_point, jac_current_step_size, false);
+463  				if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+464  				{
+465  						if( status == FMI_ERROR )
+466  						{
+467  								logger.log(4, "DoStep failed on '%s' with status: FMI_ERROR", prx);
+468  						}
+469  						if( status == FMI_FATAL )
+470  						{
+471  								logger.log(4, "DoStep failed on '%s' with status: FMI_FATAL", prx);
+472  						}
+473  						error "Failed to 'doStep' on 'prx'";
+474  				}
+475  				if( status != FMI_OK )
+476  				{
+477  						if( status == FMI_DISCARD )
+478  						{
+479  								status = prx.getRealStatus(2, ref prxCurrentTime);
+480  								prxCurrentTimeFullStep = false;
+481  						}
+482  				}
+483  				else
+484  				{
+485  						prxCurrentTime = jac_current_communication_point + jac_current_step_size;
+486  						prxCurrentTimeFullStep = true;
+487  				}
+488  				fmu_communicationpoints[1] = prxCurrentTime;
+489  				if( !prxCurrentTimeFullStep )
+490  				{
+491  						logger.log(1, "## FMU: '%s' DISCARDED step at sim-time: %f for step-size: %f and proposed sim-time: %.15f", "prx", jac_current_communication_point, jac_current_step_size, prxCurrentTime);
+492  						any_discards = any_discards || !prxCurrentTimeFullStep;
+493  				}
+494  				prxUintVref[0] = 2;
+495  				status = prx.getReal(prxUintVref, 1, prxRealIo);
+496  				if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+497  				{
+498  						if( status == FMI_ERROR )
+499  						{
+500  								logger.log(4, "GetReal failed on '%s' with status: FMI_ERROR", prx);
+501  						}
+502  						if( status == FMI_FATAL )
+503  						{
+504  								logger.log(4, "GetReal failed on '%s' with status: FMI_FATAL", prx);
+505  						}
+506  						error "Failed to 'getReal' on 'prx'";
+507  				}
+508  				optUintVref[0] = 3;
+509  				optUintVref[1] = 4;
+510  				status = opt.getReal(optUintVref, 2, optRealIo);
+511  				if( (status == FMI_ERROR) || (status == FMI_FATAL) )
+512  				{
+513  						if( status == FMI_ERROR )
+514  						{
+515  								logger.log(4, "GetReal failed on '%s' with status: FMI_ERROR", opt);
+516  						}
+517  						if( status == FMI_FATAL )
+518  						{
+519  								logger.log(4, "GetReal failed on '%s' with status: FMI_FATAL", opt);
+520  						}
+521  						error "Failed to 'getReal' on 'opt'";
+522  				}
+523  				prxRealShare[0] = prxRealIo[0];
+524  				optRealShare[0] = optRealIo[0];
+525  				optRealShare[1] = optRealIo[1];
+526  				if( !any_discards )
+527  				{
+528  						jac_current_communication_point = jac_current_communication_point + jac_current_step_size;
+529  						dataWriter1.writeDataPoint(datawriter_configuration, jac_current_communication_point, optRealShare[0], optRealShare[1], prxRealShare[0]);
+530  						jac_current_step_size = jac_step_size;
+531  				}
+532  			}
+533  			dataWriter1.close();
+534  		}		finally 
+535  		{
+536  			if( simulationControl != null )
+537  			{
+538  					unload(simulationControl);
+539  					simulationControl = null;
+540  			}
+541  			if( dataWriter1 != null )
+542  			{
+543  					unload(dataWriter1);
+544  					dataWriter1 = null;
+545  			}
+546  			if( booleanLogic2 != null )
+547  			{
+548  					unload(booleanLogic2);
+549  					booleanLogic2 = null;
+550  			}
+551  		}
+552  		opt.terminate();
+553  		prx.terminate();
+554  	}	finally 
+555  	{
+556  		if( (opt != null) )
+557  		{
+558  				optimizer.freeInstance(opt);
+559  				opt = null;
+560  		}
+561  		if( (prx != null) )
+562  		{
+563  				proxy.freeInstance(prx);
+564  				prx = null;
+565  		}
+566  		if( (optimizer != null) )
+567  		{
+568  				unload(optimizer);
+569  				optimizer = null;
+570  		}
+571  		if( (proxy != null) )
+572  		{
+573  				unload(proxy);
+574  				proxy = null;
+575  		}
+576  		if( (math != null) )
+577  		{
+578  				unload(math);
+579  				math = null;
+580  		}
+581  		if( (logger != null) )
+582  		{
+583  				unload(logger);
+584  				logger = null;
+585  		}
+586  		if( (dataWriter != null) )
+587  		{
+588  				unload(dataWriter);
+589  				dataWriter = null;
+590  		}
+591  		if( (booleanLogic != null) )
+592  		{
+593  				unload(booleanLogic);
+594  				booleanLogic = null;
+595  		}
+596  	}
+597  }
