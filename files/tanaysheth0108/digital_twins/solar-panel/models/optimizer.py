@@ -254,6 +254,7 @@ if __name__ == "__main__":
     sio   = socketio.Client()
     model = Optimizer(instance_name="optimizer_twin")
     mode  = {"v": "inverse"}
+    in_flight = {"v": False}
 
     def _safe(value: Any) -> float | None:
         if isinstance(value, (int, float)):
@@ -262,6 +263,7 @@ if __name__ == "__main__":
         return None
 
     def _emit(pwr: float) -> None:
+        in_flight["v"] = True
         calibrating = model.state in ("INIT", "WAIT_CENTER", "PROBE")
         avail  = model.max_power if model.max_power > 0 else MAX_POWER_W
         target = float(model.initial_target_power)
@@ -297,8 +299,12 @@ if __name__ == "__main__":
         mode["v"] = "inverse"
         model.start_mode = 1
         model.initial_target_power = max(0.0, t)
-        model.do_step(0.0, 0.1)
-        _emit(model.in_current_power)
+        # DO NOT call model.do_step(0.0, 0.1) here.
+        # The FMU is event driven by telemetry ticks. Calling do_step on pure
+        # parameter updates artificialy advances the settle counter, causing
+        # the model to read stale power values when multiple updates arrive.
+        if not in_flight["v"]:
+            _emit(model.in_current_power)
 
     @sio.on("telemetry_update")
     @sio.on("data_update")
@@ -308,6 +314,9 @@ if __name__ == "__main__":
         p = _safe(data.get("current_power"))
         if p is None:
             return
+        
+        in_flight["v"] = False
+        
         model.in_current_power = p
         model.start_mode = 1 if mode["v"] == "inverse" else 0
         model.do_step(0.0, 0.1)
@@ -319,3 +328,4 @@ if __name__ == "__main__":
         sio.wait()
     except Exception as e:
         print(f"Failed to connect: {e}")
+
