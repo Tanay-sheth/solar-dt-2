@@ -20,10 +20,9 @@ mv ~/.docker/config.json ~/.docker/config.json.bak
 
 ### 🚀 2. Installation & Configuration
 
-**Step A: Clone the Repository**
+**Step A: Clone the Repository(make solar-dt folder, and run below command in terminal)**
 ```bash
-git clone [https://github.com/INTO-CPS-Association/DTaaS.git](https://github.com/INTO-CPS-Association/DTaaS.git)
-cd DTaaS
+git clone https://github.com/Tanay-sheth/solar-dt-2.git .
 ```
 
 **Step B: Configure the Environment**
@@ -33,7 +32,8 @@ nano deploy/docker/.env.local
 ```
 Ensure the following variables are set to your absolute path and GitLab username:
 ```text
-DTAAS_DIR='/home/tanaysheth/Desktop/DTaaS'
+# (location of your project)
+DTAAS_DIR='/home/tanaysheth/Desktop/sop/final-solar'
 username1='tanaysheth0108'
 ```
 
