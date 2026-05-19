@@ -1,0 +1,19 @@
+#!/bin/bash
+# Navigate to the digital twin root
+cd /workspace/digital_twins/solar-panel
+
+PID_FILE=".run.pids"
+
+if [ -f "$PID_FILE" ]; then
+    echo "==> Terminating Digital Twin background services..."
+    while read -r pid; do
+        # Kill process if it exists, suppress error if already dead
+        kill "$pid" 2>/dev/null 
+    done < "$PID_FILE"
+    
+    # Remove the PID file
+    rm -f "$PID_FILE"
+    echo "✅ Cleanup complete. All services stopped."
+else
+    echo "⚠️  No running services found (could not find $PID_FILE)."
+fi

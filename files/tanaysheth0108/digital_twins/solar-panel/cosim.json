@@ -1,0 +1,26 @@
+{
+    "fmus": {
+    "{proxy}": "file:///workspace/digital_twins/solar-panel/models/hardware_proxy_unpacked",
+    "{optimizer}": "file:///workspace/digital_twins/solar-panel/models/optimizer_unpacked"
+},
+    "connections": {
+        "{optimizer}.opt.out_target_pan": [
+            "{proxy}.prx.in_target_pan"
+        ],
+        "{optimizer}.opt.out_target_tilt": [
+            "{proxy}.prx.in_target_tilt"
+        ],
+        "{proxy}.prx.out_current_power": [
+            "{optimizer}.opt.in_current_power"
+        ]
+    },
+    "parameters": {
+        "{optimizer}.opt.initial_target_power": 10.0
+    },
+    "algorithm": {
+        "type": "fixed-step",
+        "size": 0.1
+    },
+    "loggingOn": false,
+    "overrideLogLevel": "INFO"
+}
