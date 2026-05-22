@@ -41,8 +41,8 @@ python3 models/hardware_proxy.py &
 PROXY_PID=$!
 echo "$PROXY_PID" >> "$PID_FILE"
 
-echo "Starting AI Optimizer..."
-python3 models/optimizer.py &
+echo "Starting AI Optimizer (FMU-aware runner)..."
+python3 models/run_optimizer_fmu.py &
 OPTIMIZER_PID=$!
 echo "$OPTIMIZER_PID" >> "$PID_FILE"
 
