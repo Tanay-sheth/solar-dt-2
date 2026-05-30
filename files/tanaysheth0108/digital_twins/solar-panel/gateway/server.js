@@ -5,6 +5,8 @@ const { Server } = require('socket.io');
 
 const WS_PORT = 4000;
 const TCP_PORT = 4001;
+const HARDWARE_TX_DELAY_MS = Math.max(0, Number(process.env.HARDWARE_TX_DELAY_MS || 0));
+const HARDWARE_RX_DELAY_MS = Math.max(0, Number(process.env.HARDWARE_RX_DELAY_MS || 0));
 
 function parsePowerFrame(line) {
   const text = line.trim();
@@ -61,6 +63,17 @@ class MockTcpHardwareClient {
     if (!this.socket || this.socket.destroyed) {
       return;
     }
+
+    if (HARDWARE_TX_DELAY_MS > 0) {
+      setTimeout(() => {
+        if (!this.socket || this.socket.destroyed) {
+          return;
+        }
+        this.socket.write(frame);
+      }, HARDWARE_TX_DELAY_MS);
+      return;
+    }
+
     this.socket.write(frame);
   }
 
@@ -93,7 +106,16 @@ hardwareClient.onData((line) => {
     return;
   }
 
-  io.emit('telemetry_update', { current_power: power });
+  const emitTelemetry = () => {
+    io.emit('telemetry_update', { current_power: power });
+  };
+
+  if (HARDWARE_RX_DELAY_MS > 0) {
+    setTimeout(emitTelemetry, HARDWARE_RX_DELAY_MS);
+    return;
+  }
+
+  emitTelemetry();
 });
 
 const tcpServer = net.createServer((socket) => {

@@ -17,6 +17,11 @@ SUN_PAN = 90.0
 SUN_TILT = 45.0
 MAX_POWER_W = 20.0
 
+# Delay knobs (seconds). Keep at 0.0 for instant mock behavior.
+# Set these to simulate real communication and actuator latency.
+CMD_RX_APPLY_DELAY_SEC = 0.0
+POWER_TX_DELAY_SEC = 0.0
+
 def parse_command(command: str) -> tuple[float, float] | None:
     text = command.strip()
     if not (text.startswith("<") and text.endswith(">")):
@@ -67,8 +72,12 @@ def run_session(conn: socket.socket) -> None:
                     continue
 
                 pan, tilt = parsed
+                if CMD_RX_APPLY_DELAY_SEC > 0:
+                    time.sleep(CMD_RX_APPLY_DELAY_SEC)
                 power = calculate_power(pan, tilt)
                 response = f">P:{power:.2f}\n"
+                if POWER_TX_DELAY_SEC > 0:
+                    time.sleep(POWER_TX_DELAY_SEC)
                 conn.sendall(response.encode("utf-8"))
         except socket.timeout:
             continue

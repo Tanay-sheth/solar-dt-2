@@ -1,0 +1,18 @@
+stages:
+  - deploy
+
+deploy_solar_panel:
+  stage: deploy
+  tags:
+    - solar-panel
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  script:
+    - cd files/tanaysheth0108/digital_twins/solar-panel
+    - chmod +x ./lifecycle/*
+    - ./lifecycle/create
+    - ./lifecycle/terminate || true
+    - ./lifecycle/execute
+  environment:
+    name: production
+    url: http://$DEPLOY_HOST:5173
