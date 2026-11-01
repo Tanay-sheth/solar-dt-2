@@ -22,11 +22,13 @@ export default function PowerChart({ points }) {
             <CartesianGrid strokeDasharray="3 3" stroke="#d5e5ef" />
             <XAxis dataKey="tick" tick={{ fontSize: 12, fill: '#3d5567' }} />
             <YAxis
-              domain={[0, 20]}
+              domain={[0, 0.05]}
               tick={{ fontSize: 12, fill: '#3d5567' }}
+              tickFormatter={(val) => Number(val).toFixed(4)}
               label={{ value: 'Watts', angle: -90, position: 'insideLeft', fill: '#3d5567' }}
             />
             <Tooltip
+              formatter={(val) => [`${Number(val).toFixed(4)} W`, 'Power']}
               contentStyle={{
                 borderRadius: '14px',
                 border: '1px solid #dcecf4',

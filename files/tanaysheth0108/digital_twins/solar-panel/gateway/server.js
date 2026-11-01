@@ -93,7 +93,7 @@ const io = new Server(server, {
 });
 
 let activeControlMode = 'forward';
-let manualSetpoint = { pan: 90, tilt: 45 };
+let manualSetpoint = { pan: 0, tilt: 0 };
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });

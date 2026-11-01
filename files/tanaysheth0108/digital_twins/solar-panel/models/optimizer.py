@@ -43,7 +43,7 @@ from pythonfmu.variables import Integer, Real
 _STEP_INIT    = 10.0   # initial P&O perturbation step (degrees)
 _STEP_MIN     =  0.5   # stop P&O when step shrinks below this
 _STEP_SHRINK  =  0.65  # multiply step by this factor when no improvement
-_POWER_TOL    =  0.10  # W  — "close enough" for target-power match
+_POWER_TOL    =  0.00025 # W  — "close enough" for target-power match
 _T_TOL        =  0.005 # binary-search convergence in t-space
 _SETTLE_TICKS =  2     # ticks to wait after a move before reading power
                        # (covers transport delay + any low-pass smoothing)
@@ -61,8 +61,8 @@ REPEAT_INTERVAL_CHECK = 30
 MIN_REFRESH_ENABLED = True
 MIN_REFRESH_PROBES = 1
 
-_PAN_MIN,  _PAN_MAX  = 0.0, 180.0
-_TILT_MIN, _TILT_MAX = 0.0,  90.0
+_PAN_MIN,  _PAN_MAX  = -90.0, 90.0
+_TILT_MIN, _TILT_MAX = -90.0, 90.0
 
 
 def _clip(v: float, lo: float, hi: float) -> float:
@@ -91,7 +91,7 @@ class Optimizer(Fmi2Slave):
         # ── FMU I/O ─────────────────────────────────────────────────────────
         self.in_current_power:     float = 0.0
         self.start_mode:           int   = 1
-        self.initial_target_power: float = 10.0
+        self.initial_target_power: float = 0.025
         self.out_target_pan:       float = 0.0
         self.out_target_tilt:      float = 0.0
 
@@ -243,7 +243,7 @@ class Optimizer(Fmi2Slave):
             return True
 
         # Re-enter target search if desired power changed post-calibration
-        if (abs(self.initial_target_power - self._last_target_power) > 0.01
+        if (abs(self.initial_target_power - self._last_target_power) > 0.00005
                 and self.state in ("CHECK_TARGET", "LINE_SEARCH", "DONE")):
             self.state = "CHECK_TARGET"
             self._last_target_power = self.initial_target_power
@@ -296,7 +296,7 @@ class Optimizer(Fmi2Slave):
 
             # Dynamic reachable range based on calibrated max and observed min.
             reachable_max = self.max_power if self.max_power > 0 else self.in_current_power
-            if math.isfinite(self.min_power):
+            if math.isfinite(self.min_power) and self.min_power < reachable_max * 0.5:
                 reachable_min = self.min_power
             else:
                 reachable_min = 0.0
@@ -372,7 +372,7 @@ if __name__ == "__main__":
     import socketio
 
     GATEWAY_URL = "http://localhost:4000"
-    MAX_POWER_W = 20.0
+    MAX_POWER_W = 0.05
     sio   = socketio.Client()
     model = Optimizer(instance_name="optimizer_twin")
     mode  = {"v": "inverse"}
@@ -390,7 +390,7 @@ if __name__ == "__main__":
         avail  = model.max_power if model.max_power > 0 else MAX_POWER_W
         min_p  = model.min_power if math.isfinite(model.min_power) else 0.0
         target = float(model.initial_target_power)
-        achievable = calibrating or (min_p - 0.1 <= target <= avail + 0.1)
+        achievable = calibrating or (min_p - _POWER_TOL <= target <= avail + _POWER_TOL)
         if not calibrating:
             # Use the model's most recent clamp decision when available.
             achievable = model.last_achievable

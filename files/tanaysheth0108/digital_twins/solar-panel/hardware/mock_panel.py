@@ -13,9 +13,9 @@ import time
 GATEWAY_HOST = "127.0.0.1"
 GATEWAY_PORT = 4001
 
-SUN_PAN = 90.0
-SUN_TILT = 45.0
-MAX_POWER_W = 20.0
+SUN_PAN = 0.0
+SUN_TILT = 0.0
+MAX_POWER_W = 0.05
 
 # Delay knobs (seconds). Keep at 0.0 for instant mock behavior.
 # Set these to simulate real communication and actuator latency.
@@ -43,10 +43,10 @@ def parse_command(command: str) -> tuple[float, float] | None:
 def calculate_power(pan: float, tilt: float) -> float:
     # Calculate the max physical distance possible from the sun's position
     max_dist = max(
-        math.hypot(0 - SUN_PAN, 0 - SUN_TILT),
-        math.hypot(180 - SUN_PAN, 0 - SUN_TILT),
-        math.hypot(0 - SUN_PAN, 90 - SUN_TILT),
-        math.hypot(180 - SUN_PAN, 90 - SUN_TILT)
+        math.hypot(-90 - SUN_PAN, -90 - SUN_TILT),
+        math.hypot(90 - SUN_PAN, -90 - SUN_TILT),
+        math.hypot(-90 - SUN_PAN, 90 - SUN_TILT),
+        math.hypot(90 - SUN_PAN, 90 - SUN_TILT)
     )
     
     distance = math.hypot(pan - SUN_PAN, tilt - SUN_TILT)
@@ -75,7 +75,7 @@ def run_session(conn: socket.socket) -> None:
                 if CMD_RX_APPLY_DELAY_SEC > 0:
                     time.sleep(CMD_RX_APPLY_DELAY_SEC)
                 power = calculate_power(pan, tilt)
-                response = f">P:{power:.2f}\n"
+                response = f">P:{power:.4f}\n"
                 if POWER_TX_DELAY_SEC > 0:
                     time.sleep(POWER_TX_DELAY_SEC)
                 conn.sendall(response.encode("utf-8"))

@@ -4,7 +4,7 @@ function SliderRow({ label, value, min, max, step, unit, onChange }) {
       <div className="flex items-center justify-between text-sm font-medium text-slate-800">
         <span>{label}</span>
         <span className="font-mono text-cyan-900">
-          {value}
+          {typeof value === 'number' && unit === 'W' ? value.toFixed(4) : value}
           {unit}
         </span>
       </div>
@@ -55,16 +55,16 @@ export default function Controls({ mode, setMode, pan, setPan, tilt, setTilt, ta
       <div className="mt-5 space-y-5">
         {mode === 'forward' ? (
           <>
-            <SliderRow label="Pan Angle" value={pan} min={0} max={180} step={1} unit="°" onChange={setPan} />
-            <SliderRow label="Tilt Angle" value={tilt} min={0} max={90} step={1} unit="°" onChange={setTilt} />
+            <SliderRow label="Pan Angle" value={pan} min={-90} max={90} step={1} unit="°" onChange={setPan} />
+            <SliderRow label="Tilt Angle" value={tilt} min={-90} max={90} step={1} unit="°" onChange={setTilt} />
           </>
         ) : (
           <SliderRow
             label="Target Power"
             value={targetPower}
             min={0}
-            max={20}
-            step={0.1}
+            max={0.05}
+            step={0.0001}
             unit="W"
             onChange={setTargetPower}
           />
