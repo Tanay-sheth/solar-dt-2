@@ -6,33 +6,52 @@ const path = require('path');
 const { Server } = require('socket.io');
 
 const CSV_FILE = path.resolve(__dirname, '..', 'power_readings.csv');
-const CSV_INTERVAL_MS = (Number(process.env.CSV_INTERVAL_MINUTES) || 20) * 60 * 1000; // 20 minutes
-let lastCsvLogTime = 0;
+const OPTIMAL_CSV_FILE = path.resolve(__dirname, '..', 'optimal_power_readings.csv');
+const CYCLE_INTERVAL_MS = (Number(process.env.CSV_INTERVAL_MINUTES) || 20) * 60 * 1000; // 20 minutes
+let lastCycleTime = 0;
+let mpptRunning = false;
+let latestPower = 0.0;
 
-function appendPowerReadingToCsv(power) {
-  const now = Date.now();
-  // Throttle to log once every 20 minutes (logs 1st reading immediately)
-  if (now - lastCsvLogTime < CSV_INTERVAL_MS) {
-    return;
-  }
-  lastCsvLogTime = now;
+function getIstTimestamp() {
+  const d = new Date();
+  return d.toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' }).replace(' ', 'T') + '+05:30';
+}
 
+function appendFlatReadingToCsv(power) {
   try {
     if (!fs.existsSync(CSV_FILE)) {
       fs.writeFileSync(CSV_FILE, 'time,power\n', 'utf8');
     } else {
-      // Ensure file ends with newline before appending
       const content = fs.readFileSync(CSV_FILE, 'utf8');
       if (content.length > 0 && !content.endsWith('\n')) {
         fs.appendFileSync(CSV_FILE, '\n', 'utf8');
       }
     }
-    const timestamp = new Date().toISOString();
+    const timestamp = getIstTimestamp();
     const row = `${timestamp},${Number(power).toFixed(4)}\n`;
     fs.appendFileSync(CSV_FILE, row, 'utf8');
-    console.log(`[CSV] Logged reading at ${new Date().toLocaleTimeString()}: ${Number(power).toFixed(4)} W (Next log in 20 min)`);
+    console.log(`[Flat CSV] Logged reading at ${timestamp}: ${Number(power).toFixed(4)} W at (0, 0)`);
   } catch (err) {
-    console.error('Failed to append reading to CSV:', err.message);
+    console.error('Failed to append flat reading to CSV:', err.message);
+  }
+}
+
+function appendOptimalReadingToCsv(pan, tilt, power) {
+  try {
+    if (!fs.existsSync(OPTIMAL_CSV_FILE)) {
+      fs.writeFileSync(OPTIMAL_CSV_FILE, 'time,pan,tilt,power\n', 'utf8');
+    } else {
+      const content = fs.readFileSync(OPTIMAL_CSV_FILE, 'utf8');
+      if (content.length > 0 && !content.endsWith('\n')) {
+        fs.appendFileSync(OPTIMAL_CSV_FILE, '\n', 'utf8');
+      }
+    }
+    const timestamp = getIstTimestamp();
+    const row = `${timestamp},${Number(pan).toFixed(1)},${Number(tilt).toFixed(1)},${Number(power).toFixed(4)}\n`;
+    fs.appendFileSync(OPTIMAL_CSV_FILE, row, 'utf8');
+    console.log(`[Optimal CSV] Logged reading at ${timestamp}: Pan ${Number(pan).toFixed(1)}°, Tilt ${Number(tilt).toFixed(1)}°, Power ${Number(power).toFixed(4)} W`);
+  } catch (err) {
+    console.error('Failed to append optimal reading to CSV:', err.message);
   }
 }
 
@@ -128,8 +147,133 @@ const io = new Server(server, {
 let activeControlMode = 'forward';
 let manualSetpoint = { pan: 0, tilt: 0 };
 
+// ── 2-D Perturb & Observe MPPT Engine ──────────────────────────────────────
+const _PAN_MIN = -90, _PAN_MAX = 90;
+const _TILT_MIN = -90, _TILT_MAX = 90;
+const _STEP_INIT = 10.0;
+const _STEP_MIN = 0.5;
+const _STEP_SHRINK = 0.65;
+const _POWER_TOL = 0.00025;
+
+async function probePose(pan, tilt) {
+  pan = Math.max(_PAN_MIN, Math.min(_PAN_MAX, Math.round(pan * 10) / 10));
+  tilt = Math.max(_TILT_MIN, Math.min(_TILT_MAX, Math.round(tilt * 10) / 10));
+
+  hardwareClient.write(`<${pan},${tilt}>\n`);
+  io.emit('model_update', { target_pan: pan, target_tilt: tilt, state: 'PROBING' });
+
+  // Wait 1400ms for hardware travel + INA219 reading
+  await new Promise((resolve) => setTimeout(resolve, 1400));
+  return { pan, tilt, power: latestPower };
+}
+
+async function runMpptSearch() {
+  console.log('\n[MPPT] Starting 2-D Perturb & Observe MPPT search...');
+  io.emit('model_update', { state: 'MPPT_START' });
+
+  let bestPan = 0;
+  let bestTilt = 0;
+  let start = await probePose(0, 0);
+  let bestPower = start.power;
+  let step = _STEP_INIT;
+
+  console.log(`[MPPT] Center power at (0, 0): ${bestPower.toFixed(4)} W`);
+
+  while (step >= _STEP_MIN) {
+    const cardinalDeltas = [
+      { dPan: step, dTilt: 0 },
+      { dPan: -step, dTilt: 0 },
+      { dPan: 0, dTilt: step },
+      { dPan: 0, dTilt: -step },
+    ];
+
+    let roundBest = { pan: bestPan, tilt: bestTilt, power: -1 };
+
+    for (const delta of cardinalDeltas) {
+      const pPan = Math.max(_PAN_MIN, Math.min(_PAN_MAX, bestPan + delta.dPan));
+      const pTilt = Math.max(_TILT_MIN, Math.min(_TILT_MAX, bestTilt + delta.dTilt));
+
+      if (Math.abs(pPan - bestPan) < 0.1 && Math.abs(pTilt - bestTilt) < 0.1) {
+        continue;
+      }
+
+      const res = await probePose(pPan, pTilt);
+      console.log(`  [Probe] Pan: ${res.pan}°, Tilt: ${res.tilt}°, Power: ${res.power.toFixed(4)} W`);
+      if (res.power > roundBest.power) {
+        roundBest = res;
+      }
+    }
+
+    if (roundBest.power > bestPower + _POWER_TOL) {
+      bestPan = roundBest.pan;
+      bestTilt = roundBest.tilt;
+      bestPower = roundBest.power;
+      console.log(`[MPPT Step] -> Improved! Best: (${bestPan}°, ${bestTilt}°), Power: ${bestPower.toFixed(4)} W (Step: ${step.toFixed(1)}°)`);
+    } else {
+      step *= _STEP_SHRINK;
+      console.log(`[MPPT Step] -> Shrinking step to ${step.toFixed(2)}°`);
+    }
+  }
+
+  // Move to converged MPP pose
+  const mpp = await probePose(bestPan, bestTilt);
+  console.log(`[MPPT DONE] Maximum Power Point found: Pan=${bestPan}°, Tilt=${bestTilt}°, Power=${mpp.power.toFixed(4)} W`);
+
+  // Log optimal reading to optimal_power_readings.csv
+  appendOptimalReadingToCsv(bestPan, bestTilt, mpp.power);
+
+  io.emit('model_update', {
+    target_pan: bestPan,
+    target_tilt: bestTilt,
+    estimated_max_power: mpp.power,
+    state: 'MPPT_DONE'
+  });
+
+  // Hold at optimal pose for 5 seconds
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+
+  // Return panel to (0, 0) flat
+  console.log('[MPPT] Returning panel to flat (0, 0)...');
+  await probePose(0, 0);
+  io.emit('model_update', { target_pan: 0, target_tilt: 0, state: 'IDLE' });
+  console.log(`[MPPT] Panel is at (0, 0). Next measurement cycle in 20 minutes.\n`);
+}
+
+async function runCycle() {
+  if (mpptRunning) return;
+  mpptRunning = true;
+  try {
+    // 1. Log flat reading at (0, 0)
+    appendFlatReadingToCsv(latestPower);
+
+    // 2. Run MPPT search to find optimal angle & power
+    await runMpptSearch();
+  } catch (err) {
+    console.error('[Cycle Error]:', err.message);
+  } finally {
+    mpptRunning = false;
+  }
+}
+
+function checkCycleTrigger() {
+  if (mpptRunning || activeControlMode !== 'forward') return;
+  const now = Date.now();
+  if (now - lastCycleTime >= CYCLE_INTERVAL_MS) {
+    lastCycleTime = now;
+    runCycle();
+  }
+}
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
+});
+
+app.get('/trigger-cycle', (_req, res) => {
+  if (mpptRunning) {
+    return res.json({ status: 'in_progress', message: 'Measurement cycle is currently running' });
+  }
+  runCycle();
+  res.json({ status: 'started', message: 'Triggered 20-min cycle (flat reading + MPPT search)' });
 });
 
 const hardwareClient = new MockTcpHardwareClient();
@@ -139,7 +283,8 @@ hardwareClient.onData((line) => {
     return;
   }
 
-  appendPowerReadingToCsv(power);
+  latestPower = power;
+  checkCycleTrigger();
 
   const emitTelemetry = () => {
     io.emit('telemetry_update', { current_power: power });
@@ -275,7 +420,7 @@ server.listen(WS_PORT, () => {
 });
 
 setInterval(() => {
-  if (activeControlMode !== 'forward') {
+  if (activeControlMode !== 'forward' || mpptRunning) {
     return;
   }
 

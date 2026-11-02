@@ -45,6 +45,11 @@ socket.on('connect_error', (err) => {
   console.error(`Connection error: ${err.message}. Retrying...`);
 });
 
+function getIstTimestamp() {
+  const d = new Date();
+  return d.toLocaleString('sv-SE', { timeZone: 'Asia/Kolkata' }).replace(' ', 'T') + '+05:30';
+}
+
 socket.on('telemetry_update', (payload) => {
   if (!payload || typeof payload.current_power !== 'number') {
     return;
@@ -58,7 +63,7 @@ socket.on('telemetry_update', (payload) => {
   lastLogTime = now;
 
   const power = Number(payload.current_power.toFixed(4));
-  const time = new Date().toISOString();
+  const time = getIstTimestamp();
 
   // Ensure file ends with newline before appending
   if (fs.existsSync(CSV_FILE)) {
@@ -72,7 +77,7 @@ socket.on('telemetry_update', (payload) => {
   fs.appendFileSync(CSV_FILE, line, 'utf8');
   sampleCount++;
 
-  console.log(`[${new Date().toLocaleTimeString()}] Sample #${sampleCount} | Time: ${time} | Power: ${power.toFixed(4)} W (Next log in 20 min)`);
+  console.log(`[${time}] Sample #${sampleCount} | Power: ${power.toFixed(4)} W (Next log in 20 min)`);
 });
 
 // Handle graceful exit
