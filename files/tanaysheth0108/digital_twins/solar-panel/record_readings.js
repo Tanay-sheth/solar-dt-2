@@ -23,15 +23,17 @@ if (!fs.existsSync(CSV_FILE)) {
 
 console.log(`Connecting to Gateway at ${GATEWAY_URL}...`);
 const socket = io(GATEWAY_URL, {
-  transports: ['polling', 'websocket'],
+  transports: ['polling'],
   reconnection: true,
 });
 
+const INTERVAL_MS = (Number(process.env.INTERVAL_MINUTES) || 20) * 60 * 1000; // 20 minutes
 let sampleCount = 0;
+let lastLogTime = 0;
 
 socket.on('connect', () => {
   console.log(`Connected to Gateway (Socket ID: ${socket.id})`);
-  console.log(`Recording live power readings to: ${CSV_FILE}`);
+  console.log(`Recording live power readings every 20 minutes to: ${CSV_FILE}`);
   console.log(`Press Ctrl+C to stop recording.\n`);
 });
 
@@ -48,14 +50,29 @@ socket.on('telemetry_update', (payload) => {
     return;
   }
 
+  const now = Date.now();
+  // Only log if 20 minutes have passed since last log (first sample logs immediately)
+  if (now - lastLogTime < INTERVAL_MS) {
+    return;
+  }
+  lastLogTime = now;
+
   const power = Number(payload.current_power.toFixed(4));
   const time = new Date().toISOString();
 
-  const line = `${time},${power}\n`;
+  // Ensure file ends with newline before appending
+  if (fs.existsSync(CSV_FILE)) {
+    const content = fs.readFileSync(CSV_FILE, 'utf8');
+    if (content.length > 0 && !content.endsWith('\n')) {
+      fs.appendFileSync(CSV_FILE, '\n', 'utf8');
+    }
+  }
+
+  const line = `${time},${power.toFixed(4)}\n`;
   fs.appendFileSync(CSV_FILE, line, 'utf8');
   sampleCount++;
 
-  console.log(`[${new Date().toLocaleTimeString()}] Sample #${sampleCount} | Time: ${time} | Power: ${power.toFixed(4)} W`);
+  console.log(`[${new Date().toLocaleTimeString()}] Sample #${sampleCount} | Time: ${time} | Power: ${power.toFixed(4)} W (Next log in 20 min)`);
 });
 
 // Handle graceful exit

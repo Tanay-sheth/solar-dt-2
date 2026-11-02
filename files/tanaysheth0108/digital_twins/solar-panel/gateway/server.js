@@ -1,7 +1,40 @@
 const express = require('express');
 const http = require('http');
 const net = require('net');
+const fs = require('fs');
+const path = require('path');
 const { Server } = require('socket.io');
+
+const CSV_FILE = path.resolve(__dirname, '..', 'power_readings.csv');
+const CSV_INTERVAL_MS = (Number(process.env.CSV_INTERVAL_MINUTES) || 20) * 60 * 1000; // 20 minutes
+let lastCsvLogTime = 0;
+
+function appendPowerReadingToCsv(power) {
+  const now = Date.now();
+  // Throttle to log once every 20 minutes (logs 1st reading immediately)
+  if (now - lastCsvLogTime < CSV_INTERVAL_MS) {
+    return;
+  }
+  lastCsvLogTime = now;
+
+  try {
+    if (!fs.existsSync(CSV_FILE)) {
+      fs.writeFileSync(CSV_FILE, 'time,power\n', 'utf8');
+    } else {
+      // Ensure file ends with newline before appending
+      const content = fs.readFileSync(CSV_FILE, 'utf8');
+      if (content.length > 0 && !content.endsWith('\n')) {
+        fs.appendFileSync(CSV_FILE, '\n', 'utf8');
+      }
+    }
+    const timestamp = new Date().toISOString();
+    const row = `${timestamp},${Number(power).toFixed(4)}\n`;
+    fs.appendFileSync(CSV_FILE, row, 'utf8');
+    console.log(`[CSV] Logged reading at ${new Date().toLocaleTimeString()}: ${Number(power).toFixed(4)} W (Next log in 20 min)`);
+  } catch (err) {
+    console.error('Failed to append reading to CSV:', err.message);
+  }
+}
 
 const WS_PORT = 4000;
 const TCP_PORT = 4001;
@@ -105,6 +138,8 @@ hardwareClient.onData((line) => {
   if (power === null) {
     return;
   }
+
+  appendPowerReadingToCsv(power);
 
   const emitTelemetry = () => {
     io.emit('telemetry_update', { current_power: power });
