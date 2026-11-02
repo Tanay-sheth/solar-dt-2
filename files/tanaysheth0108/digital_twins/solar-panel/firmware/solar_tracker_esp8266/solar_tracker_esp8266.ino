@@ -99,6 +99,17 @@ float readPowerWatts() {
   return mW / 1000.0;
 }
 
+// Moves both servos 1 degree at a time so the battery doesn't see a big current spike.
+void moveSmooth(float pan, float tilt) {
+  while (fabs(pan - curPan) > 0.5 || fabs(tilt - curTilt) > 0.5) {
+    if (fabs(pan - curPan) > 0.5)   curPan  += (pan  > curPan)  ? 1 : -1;
+    if (fabs(tilt - curTilt) > 0.5) curTilt += (tilt > curTilt) ? 1 : -1;
+    panServo.write((int)round(curPan));
+    tiltServo.write((int)round(curTilt));
+    delay(15);
+  }
+}
+
 void handleCommand(float pan, float tilt) {
   pan  = constrain(pan,  PAN_MIN,  PAN_MAX);
   tilt = constrain(tilt, TILT_MIN, TILT_MAX);
@@ -107,10 +118,7 @@ void handleCommand(float pan, float tilt) {
   // for the servos if the angles actually changed.
   bool moved = (fabs(pan - curPan) > 0.5) || (fabs(tilt - curTilt) > 0.5);
   if (moved) {
-    panServo.write((int)round(pan));
-    tiltServo.write((int)round(tilt));
-    curPan = pan;
-    curTilt = tilt;
+    moveSmooth(pan, tilt);
     Serial.printf("Move -> pan %.1f, tilt %.1f\n", pan, tilt);
     delay(SETTLE_MS);
   }
