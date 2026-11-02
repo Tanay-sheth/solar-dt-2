@@ -101,12 +101,16 @@ float readPowerWatts() {
 
 // Moves both servos 1 degree at a time so the battery doesn't see a big current spike.
 void moveSmooth(float pan, float tilt) {
+  if (!panServo.attached())  panServo.attach(PAN_PIN);
+  if (!tiltServo.attached()) tiltServo.attach(TILT_PIN);
+
   while (fabs(pan - curPan) > 0.5 || fabs(tilt - curTilt) > 0.5) {
     if (fabs(pan - curPan) > 0.5)   curPan  += (pan  > curPan)  ? 1 : -1;
     if (fabs(tilt - curTilt) > 0.5) curTilt += (tilt > curTilt) ? 1 : -1;
     panServo.write((int)round(curPan));
     tiltServo.write((int)round(curTilt));
     delay(15);
+    yield();
   }
 }
 
@@ -116,11 +120,17 @@ void handleCommand(float pan, float tilt) {
 
   // The gateway repeats the same setpoint every second, so only wait
   // for the servos if the angles actually changed.
-  bool moved = (fabs(pan - curPan) > 0.5) || (fabs(tilt - curTilt) > 0.5);
+  bool moved = (fabs(pan - curPan) >= 1.0) || (fabs(tilt - curTilt) >= 1.0);
   if (moved) {
     moveSmooth(pan, tilt);
     Serial.printf("Move -> pan %.1f, tilt %.1f\n", pan, tilt);
-    delay(SETTLE_MS);
+    delay(300);
+
+    // Stop sending PWM pulses when stationary.
+    // This completely eliminates hunting, jitter, and wobbling at sensitive angles,
+    // reduces motor heat, and stops battery brownouts while holding position solidly.
+    panServo.detach();
+    tiltServo.detach();
   }
 
   float watts = readPowerWatts();
@@ -143,6 +153,9 @@ void setup() {
   tiltServo.attach(TILT_PIN);
   panServo.write((int)curPan);
   tiltServo.write((int)curTilt);
+  delay(400);
+  panServo.detach();
+  tiltServo.detach();
 
   connectWiFi();
 }
