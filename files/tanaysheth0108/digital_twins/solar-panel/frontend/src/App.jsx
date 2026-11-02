@@ -27,8 +27,8 @@ export default function App() {
   const [currentPower, setCurrentPower] = useState(0)
   const [powerHistory, setPowerHistory] = useState([])
   const [mode, setMode] = useState('forward')
-  const [pan, setPan] = useState(90)
-  const [tilt, setTilt] = useState(45)
+  const [pan, setPan] = useState(0)
+  const [tilt, setTilt] = useState(0)
   const [targetPowerInput, setTargetPowerInput] = useState('0.0250')
   const [requestedTargetPower, setRequestedTargetPower] = useState(0.025)
   const [optimizedPan, setOptimizedPan] = useState(null)
@@ -345,8 +345,8 @@ export default function App() {
                 <div className="mt-6 space-y-5">
                   <RangeControl
                     label="Pan"
-                    min={0}
-                    max={180}
+                    min={-90}
+                    max={90}
                     step={1}
                     value={pan}
                     onChange={setPan}
@@ -354,7 +354,7 @@ export default function App() {
                   />
                   <RangeControl
                     label="Tilt"
-                    min={0}
+                    min={-90}
                     max={90}
                     step={1}
                     value={tilt}

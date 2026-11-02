@@ -35,9 +35,17 @@ const uint16_t GATEWAY_PORT = 4001;
 const uint8_t PAN_PIN  = D5;
 const uint8_t TILT_PIN = D6;
 
-// Angle limits (same ranges the repo's mock panel uses)
-const float PAN_MIN  = 0,  PAN_MAX  = 180;
-const float TILT_MIN = 0,  TILT_MAX = 90;
+// Angle limits: -90° to +90° (0° is flat reference)
+const float PAN_MIN  = -90, PAN_MAX  = 90;
+const float TILT_MIN = -90, TILT_MAX = 90;
+
+// Physical calibration offsets for flat orientation (0°, 0°)
+const float PAN_REF  = 62.0;
+const float TILT_REF = 81.0;
+
+// Safe physical servo limits (0..180 for Pan, 0..90 for Tilt so it never hits the ground/frame)
+const int SERVO_PAN_MIN  = 0,  SERVO_PAN_MAX  = 180;
+const int SERVO_TILT_MIN = 0,  SERVO_TILT_MAX = 90;
 
 // How long to wait after the servos move before reading power
 const unsigned long SETTLE_MS = 800;
@@ -49,7 +57,8 @@ Adafruit_INA219 ina219;
 WiFiClient client;
 
 bool inaOk = false;
-float curPan = 90, curTilt = 45;
+float curPan = 0, curTilt = 0; // software angles (-90..+90)
+int curServoPan = 62, curServoTilt = 81; // physical servo angles
 
 void connectWiFi() {
   Serial.print("Connecting to Wi-Fi: ");
@@ -99,16 +108,16 @@ float readPowerWatts() {
   return mW / 1000.0;
 }
 
-// Moves both servos 1 degree at a time so the battery doesn't see a big current spike.
-void moveSmooth(float pan, float tilt) {
+// Moves both servos smoothly to physical target angles
+void moveSmooth(int targetPan, int targetTilt) {
   if (!panServo.attached())  panServo.attach(PAN_PIN);
   if (!tiltServo.attached()) tiltServo.attach(TILT_PIN);
 
-  while (fabs(pan - curPan) > 0.5 || fabs(tilt - curTilt) > 0.5) {
-    if (fabs(pan - curPan) > 0.5)   curPan  += (pan  > curPan)  ? 1 : -1;
-    if (fabs(tilt - curTilt) > 0.5) curTilt += (tilt > curTilt) ? 1 : -1;
-    panServo.write((int)round(curPan));
-    tiltServo.write((int)round(curTilt));
+  while (curServoPan != targetPan || curServoTilt != targetTilt) {
+    if (curServoPan != targetPan)   curServoPan  += (targetPan  > curServoPan)  ? 1 : -1;
+    if (curServoTilt != targetTilt) curServoTilt += (targetTilt > curServoTilt) ? 1 : -1;
+    panServo.write(curServoPan);
+    tiltServo.write(curServoTilt);
     delay(15);
     yield();
   }
@@ -118,17 +127,21 @@ void handleCommand(float pan, float tilt) {
   pan  = constrain(pan,  PAN_MIN,  PAN_MAX);
   tilt = constrain(tilt, TILT_MIN, TILT_MAX);
 
-  // The gateway repeats the same setpoint every second, so only wait
-  // for the servos if the angles actually changed.
-  bool moved = (fabs(pan - curPan) >= 1.0) || (fabs(tilt - curTilt) >= 1.0);
+  // Map software [-90..+90] to physical servos clamped to safe hardware bounds
+  int targetServoPan  = constrain((int)round(pan + PAN_REF),   SERVO_PAN_MIN,  SERVO_PAN_MAX);
+  int targetServoTilt = constrain((int)round(tilt + TILT_REF), SERVO_TILT_MIN, SERVO_TILT_MAX);
+
+  // The gateway repeats the setpoint; only move if target actually changed
+  bool moved = (fabs(pan - curPan) >= 0.5) || (fabs(tilt - curTilt) >= 0.5);
   if (moved) {
-    moveSmooth(pan, tilt);
-    Serial.printf("Move -> pan %.1f, tilt %.1f\n", pan, tilt);
+    moveSmooth(targetServoPan, targetServoTilt);
+    curPan = pan;
+    curTilt = tilt;
+    Serial.printf("Move -> SW pan: %.1f, tilt: %.1f | Servo pan: %d, tilt: %d\n",
+                  pan, tilt, curServoPan, curServoTilt);
     delay(300);
 
-    // Stop sending PWM pulses when stationary.
-    // This completely eliminates hunting, jitter, and wobbling at sensitive angles,
-    // reduces motor heat, and stops battery brownouts while holding position solidly.
+    // Stop sending PWM pulses when stationary to prevent wobble/jitter and save power
     panServo.detach();
     tiltServo.detach();
   }
@@ -151,8 +164,8 @@ void setup() {
 
   panServo.attach(PAN_PIN);
   tiltServo.attach(TILT_PIN);
-  panServo.write((int)curPan);
-  tiltServo.write((int)curTilt);
+  panServo.write(curServoPan);
+  tiltServo.write(curServoTilt);
   delay(400);
   panServo.detach();
   tiltServo.detach();
