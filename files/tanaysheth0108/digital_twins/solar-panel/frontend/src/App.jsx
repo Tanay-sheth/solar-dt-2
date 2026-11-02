@@ -27,10 +27,10 @@ export default function App() {
   const [currentPower, setCurrentPower] = useState(0)
   const [powerHistory, setPowerHistory] = useState([])
   const [mode, setMode] = useState('forward')
-  const [pan, setPan] = useState(0)
-  const [tilt, setTilt] = useState(0)
-  const [targetPowerInput, setTargetPowerInput] = useState('0.0250')
-  const [requestedTargetPower, setRequestedTargetPower] = useState(0.025)
+  const [pan, setPan] = useState(90)
+  const [tilt, setTilt] = useState(45)
+  const [targetPowerInput, setTargetPowerInput] = useState('10')
+  const [requestedTargetPower, setRequestedTargetPower] = useState(10)
   const [optimizedPan, setOptimizedPan] = useState(null)
   const [optimizedTilt, setOptimizedTilt] = useState(null)
   const [isTargetUnachievable, setIsTargetUnachievable] = useState(false)
@@ -65,7 +65,7 @@ export default function App() {
         return
       }
 
-      const nextPower = Number(payload.current_power.toFixed(4))
+      const nextPower = Number(payload.current_power.toFixed(2))
       latestPowerRef.current = nextPower
       setCurrentPower(nextPower)
     })
@@ -96,11 +96,11 @@ export default function App() {
       }
 
       if (typeof payload.estimated_min_power === 'number') {
-        setEstimatedMinPower(Number(payload.estimated_min_power.toFixed(4)))
+        setEstimatedMinPower(Number(payload.estimated_min_power.toFixed(2)))
       }
 
       if (typeof payload.estimated_max_power === 'number') {
-        setEstimatedMaxPower(Number(payload.estimated_max_power.toFixed(4)))
+        setEstimatedMaxPower(Number(payload.estimated_max_power.toFixed(2)))
       }
 
       if (typeof payload.clamped === 'string') {
@@ -212,17 +212,17 @@ export default function App() {
   }, [powerHistory])
 
   const chartUpperBound = useMemo(() => {
-    const candidates = [0.05, requestedTargetPower]
+    const candidates = [25, requestedTargetPower + 5]
 
     if (typeof estimatedMaxPower === 'number') {
-      candidates.push(estimatedMaxPower)
+      candidates.push(estimatedMaxPower + 4)
     }
 
     if (chartData.length > 0) {
-      candidates.push(Math.max(...chartData.map((point) => point.power)))
+      candidates.push(Math.max(...chartData.map((point) => point.power)) + 3)
     }
 
-    return Math.max(0.05, ...candidates)
+    return Math.max(...candidates)
   }, [chartData, estimatedMaxPower, requestedTargetPower])
 
   const formatRelativeTime = (secondsOffset) => {
@@ -295,7 +295,7 @@ export default function App() {
           <section className="mt-6 flex flex-row justify-center">
             <MetricCard
               label="Live Power"
-              value={`${currentPower.toFixed(4)} W`}
+              value={`${currentPower.toFixed(2)} W`}
               note="Current telemetry from the gateway"
               accent="sky"
             />
@@ -345,8 +345,8 @@ export default function App() {
                 <div className="mt-6 space-y-5">
                   <RangeControl
                     label="Pan"
-                    min={-90}
-                    max={90}
+                    min={0}
+                    max={180}
                     step={1}
                     value={pan}
                     onChange={setPan}
@@ -354,7 +354,7 @@ export default function App() {
                   />
                   <RangeControl
                     label="Tilt"
-                    min={-90}
+                    min={0}
                     max={90}
                     step={1}
                     value={tilt}
@@ -374,13 +374,12 @@ export default function App() {
                   <label className="block">
                     <div className="mb-2 flex items-center justify-between text-sm font-medium text-slate-700">
                       <span>Target Power</span>
-                      <span className="font-mono text-sky-700">{requestedTargetPower.toFixed(4)} W</span>
+                      <span className="font-mono text-sky-700">{requestedTargetPower.toFixed(1)} W</span>
                     </div>
                     <input
                       type="number"
-                      step="0.0001"
+                      step="0.1"
                       min="0"
-                      max="0.05"
                       inputMode="decimal"
                       value={targetPowerInput}
                       onChange={handleTargetPowerChange}
@@ -441,14 +440,12 @@ export default function App() {
                       tickFormatter={formatRelativeTime}
                     />
                     <YAxis
-                      domain={[0, (dataMax) => Math.max(0.05, Number(chartUpperBound.toFixed(4)))]}
+                      domain={[0, 'auto']}
                       stroke="#64748b"
                       tick={{ fill: '#64748b', fontSize: 12 }}
-                      tickFormatter={(val) => Number(val).toFixed(4)}
                     />
                     <Tooltip
                       labelFormatter={formatRelativeTime}
-                      formatter={(val) => [`${Number(val).toFixed(4)} W`, 'Power']}
                       contentStyle={{
                         backgroundColor: '#ffffff',
                         border: '1px solid #dbe5ef',
@@ -480,7 +477,7 @@ export default function App() {
               <div className={`mt-4 grid gap-3 border-t border-slate-200 pt-4 ${mode === 'inverse' ? 'sm:grid-cols-2 xl:grid-cols-4' : 'sm:grid-cols-2'}`}>
                 <InfoCard label="Mode" value={mode === 'forward' ? 'Manual' : 'AI Optimization'} />
                 <InfoCard label="Connection" value={connectionLabel} />
-                {mode === 'inverse' ? <InfoCard label="Target" value={`${requestedTargetPower.toFixed(4)} W`} /> : null}
+                {mode === 'inverse' ? <InfoCard label="Target" value={`${requestedTargetPower.toFixed(1)} W`} /> : null}
                 {mode === 'inverse' ? <InfoCard label="Solver" value={optimizerState} /> : null}
               </div>
             </section>
@@ -585,5 +582,5 @@ function formatPowerValue(value) {
     return '-- W'
   }
 
-  return `${value.toFixed(4)} W`
+  return `${value.toFixed(2)} W`
 }

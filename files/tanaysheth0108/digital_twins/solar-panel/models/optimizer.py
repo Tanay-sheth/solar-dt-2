@@ -61,8 +61,8 @@ REPEAT_INTERVAL_CHECK = 30
 MIN_REFRESH_ENABLED = True
 MIN_REFRESH_PROBES = 1
 
-_PAN_MIN,  _PAN_MAX  = -90.0, 90.0
-_TILT_MIN, _TILT_MAX = -90.0, 90.0
+_PAN_MIN,  _PAN_MAX  =   0.0, 180.0
+_TILT_MIN, _TILT_MAX =   0.0,  90.0
 
 
 def _clip(v: float, lo: float, hi: float) -> float:
@@ -92,13 +92,13 @@ class Optimizer(Fmi2Slave):
         self.in_current_power:     float = 0.0
         self.start_mode:           int   = 1
         self.initial_target_power: float = 0.025
-        self.out_target_pan:       float = 0.0
-        self.out_target_tilt:      float = 0.0
+        self.out_target_pan:       float = 90.0
+        self.out_target_tilt:      float = 45.0
 
         # ── Internal state ───────────────────────────────────────────────────
         self.state:     str   = "INIT"
-        self.mpp_pan:   float = 0.0
-        self.mpp_tilt:  float = 0.0
+        self.mpp_pan:   float = 90.0
+        self.mpp_tilt:  float = 45.0
         self.max_power: float = -1.0
         self.min_power: float = float("inf")
         self._last_target_power: float = -1.0

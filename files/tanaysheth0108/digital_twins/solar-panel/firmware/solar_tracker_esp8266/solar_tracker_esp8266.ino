@@ -35,15 +35,12 @@ const uint16_t GATEWAY_PORT = 4001;
 const uint8_t PAN_PIN  = D5;
 const uint8_t TILT_PIN = D6;
 
-// Angle limits: -90° to +90° (0° is center -> 90° on servo)
-const float PAN_MIN  = -90, PAN_MAX  = 90;
-const float TILT_MIN = -90, TILT_MAX = 90;
+// Angle limits (same ranges the repo's mock panel uses)
+const float PAN_MIN  = 0,  PAN_MAX  = 180;
+const float TILT_MIN = 0,  TILT_MAX = 90;
 
-// Pulse width (µs) for standard servos (0° to 180°)
-const int SERVO_US_MIN = 544, SERVO_US_MAX = 2400;
-
-// Settle delay (ms) after servo movement before power reading
-const unsigned long SETTLE_MS = 60;
+// How long to wait after the servos move before reading power
+const unsigned long SETTLE_MS = 800;
 // ==============================================
 
 Servo panServo;
@@ -52,7 +49,7 @@ Adafruit_INA219 ina219;
 WiFiClient client;
 
 bool inaOk = false;
-float curPan = 0, curTilt = 0;
+float curPan = 90, curTilt = 45;
 
 void connectWiFi() {
   Serial.print("Connecting to Wi-Fi: ");
@@ -88,10 +85,16 @@ bool parseCommand(String line, float &pan, float &tilt) {
   return true;
 }
 
-// INA219 reading, returned in watts.
+// Average of a few INA219 readings, returned in watts.
 float readPowerWatts() {
   if (!inaOk) return 0.0;
-  float mW = ina219.getBusVoltage_V() * ina219.getCurrent_mA();  // V * mA = mW
+  const int N = 5;
+  float sum_mW = 0;
+  for (int i = 0; i < N; i++) {
+    sum_mW += ina219.getBusVoltage_V() * ina219.getCurrent_mA();  // V * mA = mW
+    delay(10);
+  }
+  float mW = sum_mW / N;
   if (mW < 0) mW = 0;
   return mW / 1000.0;
 }
@@ -100,19 +103,15 @@ void handleCommand(float pan, float tilt) {
   pan  = constrain(pan,  PAN_MIN,  PAN_MAX);
   tilt = constrain(tilt, TILT_MIN, TILT_MAX);
 
-  // The gateway repeats the setpoint periodically. Only move servos if the target changed.
-  bool moved = (fabs(pan - curPan) > 0.1) || (fabs(tilt - curTilt) > 0.1);
+  // The gateway repeats the same setpoint every second, so only wait
+  // for the servos if the angles actually changed.
+  bool moved = (fabs(pan - curPan) > 0.5) || (fabs(tilt - curTilt) > 0.5);
   if (moved) {
-    // Map pan and tilt (-90..+90) to standard servo angles (0..180)
-    int servoPan  = (int)round(pan + 90.0);
-    int servoTilt = (int)round(tilt + 90.0);
-
-    panServo.write(servoPan);
-    tiltServo.write(servoTilt);
-
+    panServo.write((int)round(pan));
+    tiltServo.write((int)round(tilt));
     curPan = pan;
     curTilt = tilt;
-    Serial.printf("Move -> pan %.1f (servo %d), tilt %.1f (servo %d)\n", pan, servoPan, tilt, servoTilt);
+    Serial.printf("Move -> pan %.1f, tilt %.1f\n", pan, tilt);
     delay(SETTLE_MS);
   }
 
@@ -132,10 +131,10 @@ void setup() {
   inaOk = ina219.begin();
   Serial.println(inaOk ? "INA219 found" : "INA219 NOT found - will report 0 W");
 
-  panServo.attach(PAN_PIN, SERVO_US_MIN, SERVO_US_MAX);
-  tiltServo.attach(TILT_PIN, SERVO_US_MIN, SERVO_US_MAX);
-  panServo.write((int)round(curPan + 90.0));
-  tiltServo.write((int)round(curTilt + 90.0));
+  panServo.attach(PAN_PIN);
+  tiltServo.attach(TILT_PIN);
+  panServo.write((int)curPan);
+  tiltServo.write((int)curTilt);
 
   connectWiFi();
 }
@@ -160,19 +159,10 @@ void loop() {
     Serial.println("Gateway connected");
   }
 
-  // Drain any queued frames to only process the freshest setpoint
-  String latestLine = "";
   while (client.available()) {
     String line = client.readStringUntil('\n');
-    line.trim();
-    if (line.length() > 0) {
-      latestLine = line;
-    }
-  }
-
-  if (latestLine.length() > 0) {
     float pan, tilt;
-    if (parseCommand(latestLine, pan, tilt)) {
+    if (parseCommand(line, pan, tilt)) {
       handleCommand(pan, tilt);
     }
   }
